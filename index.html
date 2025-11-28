@@ -2,38 +2,188 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Redirecionando...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 400px;
+        }
+        h1 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        p {
+            color: #666;
+            font-size: 16px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
     <script>
+        // ===== Redirecionador Robusto para Múltiplos Dispositivos =====
+        
         // Lista de URLs para redirecionar
         const urls = [
             "https://www.instagram.com/p/DQ67WjpEbZz/?img_index=1",
             "https://www.instagram.com/p/DRcfuoqEUpT/?img_index=1",
             "https://www.instagram.com/p/DQ67WjpEbZz/?img_index=2",
             "https://www.instagram.com/p/DM2kd_Gx--H/"
-            
         ];
 
-        // Usamos localStorage para lembrar o próximo link
-        let index = localStorage.getItem("redirect_index");
+        // Função para obter/salvar índice com fallback seguro
+        function getStorageIndex() {
+            try {
+                // Tenta localStorage (persistente entre abas)
+                let index = localStorage.getItem("redirect_index");
+                if (index !== null) return parseInt(index);
+            } catch (e) {
+                console.warn("localStorage não disponível, usando sessionStorage");
+            }
 
-        if (index === null) {
-            index = 0;
-        } else {
-            index = parseInt(index);
+            try {
+                // Fallback para sessionStorage (modo privado/incógnito)
+                let index = sessionStorage.getItem("redirect_index");
+                if (index !== null) return parseInt(index);
+            } catch (e) {
+                console.warn("sessionStorage não disponível, usando índice aleatório");
+            }
+
+            // Fallback final: índice aleatório
+            return Math.floor(Math.random() * urls.length);
         }
 
-        // Pega a URL correspondente
-        const nextUrl = urls[index];
+        function setStorageIndex(newIndex) {
+            try {
+                localStorage.setItem("redirect_index", newIndex);
+            } catch (e) {
+                try {
+                    sessionStorage.setItem("redirect_index", newIndex);
+                } catch (e2) {
+                    console.warn("Nenhum storage disponível");
+                }
+            }
+        }
 
-        // Atualiza o índice para a próxima vez
-        const newIndex = (index + 1) % urls.length;
-        localStorage.setItem("redirect_index", newIndex);
+        // Função para validar URL
+        function isValidUrl(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        }
 
-        // Redireciona automaticamente
-        window.location.href = nextUrl;
+        // Função de redirecionamento com retry
+        function performRedirect(url, attempts = 0) {
+            if (!isValidUrl(url)) {
+                showError("URL inválida: " + url);
+                return;
+            }
+
+            // Tenta diferentes métodos de redirecionamento
+            if (attempts === 0) {
+                window.location.href = url;
+            } else if (attempts === 1) {
+                window.location.replace(url);
+            } else if (attempts === 2) {
+                window.open(url, '_self');
+            } else {
+                showManualRedirect(url);
+            }
+        }
+
+        // Mostra erro e botão de fallback
+        function showError(message) {
+            document.getElementById('status').textContent = "❌ Erro ao redirecionar";
+            document.getElementById('message').innerHTML = `<p>${message}</p><p>Clique no botão abaixo para continuar:</p>`;
+            document.getElementById('spinner').classList.add('hidden');
+            document.getElementById('fallbackBtn').classList.remove('hidden');
+        }
+
+        // Mostra redirecionamento manual
+        function showManualRedirect(url) {
+            document.getElementById('status').textContent = "⚠️ Clique abaixo para continuar";
+            document.getElementById('message').innerHTML = `<p>Se não for redirecionado automaticamente, clique no botão:</p>`;
+            document.getElementById('spinner').classList.add('hidden');
+            document.getElementById('fallbackBtn').classList.remove('hidden');
+            document.getElementById('fallbackBtn').onclick = () => window.open(url, '_blank');
+        }
+
+        // Executa ao carregar a página
+        window.addEventListener('load', function() {
+            const index = getStorageIndex();
+            const nextUrl = urls[index];
+            const newIndex = (index + 1) % urls.length;
+            
+            setStorageIndex(newIndex);
+
+            // Aguarda 500ms para garantir que a página está pronta
+            setTimeout(() => {
+                performRedirect(nextUrl);
+            }, 500);
+
+            // Retry em caso de falha após 2 segundos
+            setTimeout(() => {
+                if (window.location.href.includes(window.location.origin)) {
+                    console.log("Redirecionamento falhou, tentando método alternativo...");
+                    performRedirect(nextUrl, 1);
+                }
+            }, 2000);
+        });
     </script>
 </head>
 <body>
-    <p>Redirecionando...</p>
+    <div class="container">
+        <h1 id="status">Redirecionando...</h1>
+        <div class="spinner" id="spinner"></div>
+        <div id="message">
+            <p>Você será redirecionado em breve.</p>
+        </div>
+        <button id="fallbackBtn" class="hidden">Clique aqui se não for redirecionado</button>
+    </div>
 </body>
 </html>
